@@ -2,31 +2,31 @@
 #define BONEMANAGER_H
 
 #include <QGraphicsScene>
-#include <QGlobal.h>
 #include <QObject>
-#include <QTime>
 #include <QList>
 #include <Bone.h>
 #include <QMessageBox>
+#include <QGlobal.h>
+#include <QTime>
 
 class BoneManager : public QObject
 {
 
     Q_OBJECT
 
-    typedef QList<QPointF>          Cells;
-    typedef Cells::iterator         CellsItr;
-    typedef QList<Bone*>            Bones;
-    typedef Bones::iterator         BonesItr;
+    typedef QList<QPointF>      Cells;
+    typedef Cells::iterator     CellsItr;
+    typedef QList<Bone*>        Bones;
+    typedef Bones::iterator     BonesItr;
 
     public:
-                            BoneManager()
+                                BoneManager()
         {
 
             this->fieldReset();
 
         }
-        QGraphicsScene*     getScene()
+        QGraphicsScene*         getScene()
                             {
 
                                 return &this->scene;
@@ -34,17 +34,21 @@ class BoneManager : public QObject
                             }
 
     private:
-        QGraphicsScene      scene;
-        Bones               bones;
+        static const int        shuffleMoves = 100;
+        QGraphicsScene          scene;
+        Bones                   bones;
+        QPointF                 hole;
+        bool                    shuffling;
 
-        void                fieldReset()
+        void                    fieldReset()
         {
 
             this->fieldClear();
             this->fieldFill();
+            this->fieldShuffle();
 
         }
-        void                fieldClear()
+        void                    fieldClear()
         {
 
             for (BonesItr itr=this->bones.begin() ; itr!=this->bones.end() ; ++itr)
@@ -57,14 +61,11 @@ class BoneManager : public QObject
             this->bones.clear();
 
         }
-        void                fieldFill()
+        void                    fieldFill()
         {
 
-            QTime time = QTime::currentTime();
-            qsrand((uint)time.msec());
-            int boneNumber = 0;
+            this->hole = QPointF(150,150);
             int boneCount = 0;
-            QPointF bonePosition;
 
             for (int row=0 ; row<4 ; ++row)
             {
@@ -74,54 +75,81 @@ class BoneManager : public QObject
 
                     boneCount++;
 
-                    if (boneCount<16)
-                    {
-
-                        do
-                        {
-                            boneNumber = this->random(1,15);
-                        }
-                        while (this->getBone(boneNumber) != NULL);
-
-                        bonePosition = QPointF(col*50,row*50);
-                        this->addBone(boneNumber,bonePosition);
-
-                    }
-
-                    else
+                    if (boneCount==16)
                     {
 
                         break;
 
                     }
 
+                    this->addBone(boneCount,QPointF(col*50,row*50));
+
                 }
 
             }
 
         }
-        Bone*               getBone(int boneNumber)
+        void                    fieldShuffle()
         {
 
-            Bone* bone = NULL;
+            QTime time = QTime::currentTime();
+            qsrand((uint)time.msec());
+            this->shuffling = true;
 
-            for (BonesItr itr=this->bones.begin() ; itr!=this->bones.end() ; ++itr)
+            for (int i=0 ; i<BoneManager::shuffleMoves ; ++i)
             {
 
-                if ((*itr)->getNumber() == boneNumber)
+                Cells cellsMoveable = this->getPointNeighbours(this->hole);
+                CellsItr cellRandom = cellsMoveable.begin() + this->random(0,cellsMoveable.size()-1);
+                Bone* bone = this->getBone(*cellRandom);
+                this->moveBone(bone);
+
+            }
+
+            this->shuffling = false;
+
+        }
+        Cells                   getPointNeighbours(QPointF point)
+        {
+
+            Cells cellsAll;
+            Cells cellsAvaliable;
+
+            cellsAll.push_back(point+QPointF(0,50));
+            cellsAll.push_back(point+QPointF(50,0));
+            cellsAll.push_back(point+QPointF(-50,0));
+            cellsAll.push_back(point+QPointF(0,-50));
+
+            for (CellsItr itr=cellsAll.begin() ; itr!=cellsAll.end() ; ++itr)
+            {
+
+                QPointF point = *itr;
+
+                if (point.x()>=0 && point.y()>=0 && point.x()<=150 && point.y()<=150)
                 {
 
-                    bone = *itr;
-                    break;
+                    cellsAvaliable.push_back(point);
 
                 }
 
             }
 
-            return bone;
+            return cellsAvaliable;
 
         }
-        Bone*               getBone(QPointF bonePosition)
+        void                    addBone(int boneNumber, QPointF position)
+        {
+
+            QPointF point;
+            Bone* bone = new Bone(boneNumber);
+            this->bones.push_back(bone);
+            scene.addItem(bone);
+            bone->setPos(position);
+
+            QObject::connect(bone,SIGNAL(clicked(Bone*)),this,SLOT(moveBone(Bone*)));
+
+        }
+        Bone*                   getBone(QPointF bonePosition)
         {
 
             Bone* bone = NULL;
@@ -142,77 +170,26 @@ class BoneManager : public QObject
             return bone;
 
         }
-        void                addBone(int boneNumber, QPointF position)
+        bool                    getBoneMoveable(Bone* bone)
         {
 
-            QPointF point;
-            Bone* bone = new Bone(boneNumber);
-            this->bones.push_back(bone);
-            scene.addItem(bone);
-            bone->setPos(position);
-
-            QObject::connect(bone,SIGNAL(clicked(Bone*)),this,SLOT(moveBone(Bone*)));
-
-        }
-        Cells               getBoneNeighbourCells(Bone* bone)
-        {
-
-            Cells cellsAll;
-            Cells cellsAvaliable;
-            QPointF bonePosition = bone->pos();
-
-            cellsAll.push_back(bonePosition+QPointF(0,50));
-            cellsAll.push_back(bonePosition+QPointF(50,0));
-            cellsAll.push_back(bonePosition+QPointF(-50,0));
-            cellsAll.push_back(bonePosition+QPointF(0,-50));
-
-            for (CellsItr itr=cellsAll.begin() ; itr!=cellsAll.end() ; ++itr)
+            if(this->getBoneNeighbours(bone).contains(this->hole))
             {
 
-                QPointF point = *itr;
-
-                if (point.x()>=0 && point.y()>=0 && point.x()<=150 && point.y()<=150)
-                {
-
-                    cellsAvaliable.push_back(point);
-
-                }
+                return true;
 
             }
 
-            return cellsAvaliable;
+            return false;
 
         }
-        QPointF             getBoneNeighbourEmptyCell(Bone* bone)
+        Cells                   getBoneNeighbours(Bone* bone)
         {
 
-            Cells cellsAll = this->getBoneNeighbourCells(bone);
-
-            for (BonesItr itr=this->bones.begin() ; itr!=this->bones.end() ; ++itr)
-            {
-
-                QPointF bonePoint = (*itr)->pos();
-                cellsAll.removeOne(bonePoint);
-
-            }
-
-            if(!cellsAll.empty())
-            {
-
-                return cellsAll.first();
-
-            }
-
-            return QPointF(-1,-1);
+            return this->getPointNeighbours(bone->pos());
 
         }
-        int                 random(int low, int high)
-        {
-
-            return qrand() % ((high + 1) - low) + low;
-
-        }
-        bool                checkWin()
+        bool                    getWinPosition()
         {
 
             int boneId = 0;
@@ -240,20 +217,27 @@ class BoneManager : public QObject
             return true;
 
         }
-
-    private slots:
-        void                moveBone(Bone* bone)
+        int                     random(int low, int high)
         {
 
-            QPointF point = this->getBoneNeighbourEmptyCell(bone);
+            return qrand() % ((high + 1) - low) + low;
 
-            if (point.x()>=0)
+        }
+
+    private slots:
+        void                    moveBone(Bone* bone)
+        {
+
+            if(this->getBoneMoveable(bone))
             {
 
-                bone->setX(point.x());
-                bone->setY(point.y());
+                QPointF bonePosOld = bone->pos();
 
-                if (this->checkWin())
+                bone->setX(hole.x());
+                bone->setY(hole.y());
+                hole = bonePosOld;
+
+                if (!this->shuffling && this->getWinPosition())
                 {
 
                     QMessageBox msgBox;

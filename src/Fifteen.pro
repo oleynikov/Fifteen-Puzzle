@@ -8,3 +8,6 @@ HEADERS += \
 
 FORMS += \
     WindowGame.ui
+
+RESOURCES += \
+    Resources.qrc

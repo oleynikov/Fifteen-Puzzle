@@ -6,9 +6,6 @@
 #include <QPen>
 #include <QBrush>
 
-
-#include <QDebug>
-
 class Bone : public QGraphicsObject
 {
 
@@ -33,17 +30,17 @@ class Bone : public QGraphicsObject
             emit this->clicked(this);
 
         }
+        virtual void        paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+        {
+
+            painter->drawRect(this->boundingRect());
+            painter->drawText(this->boundingRect(),Qt::AlignCenter,QString::number(this->number));
+
+        }
         virtual QRectF      boundingRect()const
         {
 
             return QRectF(5,5,Bone::size-10,Bone::size-10);
-
-        }
-        virtual void        paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
-        {
-
-            painter->drawRect(this->boundingRect());
-            painter->drawText(this->boundingRect(),QString::number(this->number));
 
         }
 
